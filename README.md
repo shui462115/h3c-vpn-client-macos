@@ -21,6 +21,12 @@ H3C 和 iNode 是其各自权利人的商标。SSL VPN Connect 是独立开发�
 
 从旧版本升级到 `0.9.3` 后必须点击一次“更新服务”，以安装包含日志硬限制和 TLS 退出修复的新后台服务及连接核心。
 
+`0.9.4` 新增应用内更新。程序启动后会异步检查 GitHub 最新稳定版，也可从应用菜单或菜单栏选择“检查更新…”。发现新版后，确认“下载并覆盖”即可自动下载、校验、替换当前 `.app` 并重新打开，无需再次拖拽安装。
+
+自动更新只覆盖图形应用，不会静默改动具有 root 权限的后台 VPN 服务；如果新版需要同步升级服务，重新打开后仍会明确提示“更新服务”，并在用户操作时请求一次管理员授权。更新前必须先断开 VPN，且当前应用所在目录需要允许当前用户写入；否则程序会保留原版本并提示从 DMG 手动覆盖。
+
+更新器只接受此仓库 GitHub Release 中名为 `SSLVPNConnect-macOS-arm64.dmg` 的附件，并依次校验 GitHub 提供的文件大小和 SHA-256、应用 Bundle ID、版本、arm64 架构及完整代码签名，最后通过同目录原子交换替换应用。由于当前 Release 使用本地临时签名而非 Apple Developer ID，发布者身份仍依赖 GitHub 仓库及账号安全；请勿从第三方镜像替换 Release 附件。
+
 图形客户端支持路由冲突检测、密码安全输入、连接/断开、实时日志和证书固定。当前安装包使用本地临时签名，未经过 Apple Developer ID 公证；首次打开时请核对安装包来源和 SHA-256 后自行决定是否允许运行。
 
 后台服务只接受安装它的当前 macOS 用户通过本机 socket 请求，并且只调用安装包内固定的兼容连接核心和 `vpnc-script`；它不是一个可执行任意命令的 root shell。
@@ -35,6 +41,7 @@ H3C 和 iNode 是其各自权利人的商标。SSL VPN Connect 是独立开发�
 - 关闭主窗口后应用继续驻留菜单栏，连接状态、打开窗口和断开操作可从菜单栏访问。
 - 连接后根据网关分配的 VPN 地址定位对应 `utun`，显示实时下载/上传速度及本次会话累计流量；菜单栏同步显示实时速度。
 - 认证、SSL 或网关连接失败时自动停止残留进程；启动后 30 秒仍未获得 VPN 地址会按连接超时自动断开。
+- 启动时自动检查 GitHub 最新稳定版；应用菜单和菜单栏均可手动检查，下载及覆盖过程不会上传 VPN 网关、用户名、密码或连接日志。
 
 ## 功能与安全性
 
@@ -83,11 +90,14 @@ sudo ./h3c-vpn --gateway HOST:PORT --username USER \
 
 `scripts/build-dmg.sh` 会进一步编译 SwiftUI 图形界面，并生成 DMG。
 
+`scripts/test-update.sh` 会测试版本比较、Release 元数据解析、DMG 摘要与应用身份校验，以及独立更新器的覆盖和重新启动流程；运行前需先生成 DMG。
+
 构建依赖：Xcode Command Line Tools、Homebrew，以及 `autoconf automake libtool pkg-config openssl@3 libxml2 lz4`。发布包使用的具体版本记录在 `BUILD-INFO.txt`。
 
 ```bash
 ./scripts/build.sh
 ./scripts/build-dmg.sh
+./scripts/test-update.sh
 ```
 
 提交项目修改后，可生成与二进制 Release 对应的完整源码包：

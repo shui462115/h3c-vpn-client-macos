@@ -370,6 +370,18 @@ private func helperRequest(command: UInt32, fields: [String]) throws -> HelperRe
                           message: String(data: messageData, encoding: .utf8) ?? "")
 }
 
+enum UpdateNoticeAction {
+    case install(UpdateRelease)
+    case dismiss
+}
+
+struct UpdateNotice: Identifiable {
+    let id = UUID()
+    let title: String
+    let message: String
+    let action: UpdateNoticeAction
+}
+
 @MainActor
 final class VPNViewModel: ObservableObject {
     @Published var gatewayProfiles: [GatewayProfile]
@@ -394,6 +406,10 @@ final class VPNViewModel: ObservableObject {
     @Published var downloadBytesPerSecond: UInt64 = 0
     @Published var uploadBytesPerSecond: UInt64 = 0
     @Published var trafficInterface = ""
+    @Published var updateNotice: UpdateNotice?
+    @Published var updateStatusText = ""
+    @Published var isCheckingForUpdate = false
+    @Published var isInstallingUpdate = false
 
     private var vpnPID: pid_t?
     private var logURL: URL?
@@ -403,6 +419,7 @@ final class VPNViewModel: ObservableObject {
     private var vpnAddress: String?
     private var isRefreshingState = false
     private var lastTrafficSample: (date: Date, received: UInt64, sent: UInt64, interface: String)?
+    private var didCheckForUpdateOnLaunch = false
     private let defaults = UserDefaults.standard
 
     init() {
@@ -446,6 +463,85 @@ final class VPNViewModel: ObservableObject {
     var downloadTotalText: String { formattedBytes(downloadBytes) }
     var uploadTotalText: String { formattedBytes(uploadBytes) }
     var hasLog: Bool { logURL != nil }
+    var isUpdating: Bool { isCheckingForUpdate || isInstallingUpdate }
+    var currentVersion: String {
+        Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.0.0"
+    }
+
+    func checkForUpdatesOnLaunch() {
+        guard !didCheckForUpdateOnLaunch else { return }
+        didCheckForUpdateOnLaunch = true
+        Task {
+            try? await Task.sleep(nanoseconds: 800_000_000)
+            checkForUpdates(manual: false)
+        }
+    }
+
+    func checkForUpdates(manual: Bool = true) {
+        guard !isUpdating else { return }
+        isCheckingForUpdate = true
+        updateStatusText = "正在检查 GitHub 更新…"
+        let installedVersion = currentVersion
+        Task {
+            do {
+                let release = try await latestApplicationUpdate(currentVersion: installedVersion)
+                isCheckingForUpdate = false
+                updateStatusText = ""
+                if let release {
+                    updateNotice = UpdateNotice(
+                        title: "发现新版本 \(release.version)",
+                        message: "当前版本为 \(installedVersion)。将从 GitHub 下载并校验安装包，然后直接覆盖当前应用。",
+                        action: .install(release)
+                    )
+                } else if manual {
+                    updateNotice = UpdateNotice(title: "已是最新版本",
+                                                message: "当前版本 \(installedVersion) 无需更新。",
+                                                action: .dismiss)
+                }
+            } catch {
+                isCheckingForUpdate = false
+                updateStatusText = ""
+                if manual {
+                    updateNotice = UpdateNotice(title: "检查更新失败",
+                                                message: error.localizedDescription,
+                                                action: .dismiss)
+                }
+            }
+        }
+    }
+
+    func installApplicationUpdate(_ release: UpdateRelease) {
+        guard !isUpdating else { return }
+        guard !isConnected, !isBusy else {
+            updateNotice = UpdateNotice(title: "请先断开 VPN",
+                                        message: "断开当前连接后，再从应用菜单选择“检查更新…”。",
+                                        action: .dismiss)
+            return
+        }
+        isInstallingUpdate = true
+        updateStatusText = "正在下载版本 \(release.version)…"
+        Task {
+            var prepared: PreparedUpdate?
+            do {
+                let dmgURL = try await downloadApplicationUpdate(release)
+                updateStatusText = "正在校验并准备新版应用…"
+                prepared = try await prepareApplicationUpdate(dmgURL: dmgURL, release: release,
+                                                               currentAppURL: Bundle.main.bundleURL)
+                updateStatusText = "正在退出并覆盖当前版本…"
+                try launchApplicationUpdater(prepared!)
+                NSApp.terminate(nil)
+            } catch {
+                if let staged = prepared?.stagedAppURL {
+                    try? FileManager.default.removeItem(at: staged)
+                }
+                isInstallingUpdate = false
+                updateStatusText = ""
+                updateNotice = UpdateNotice(title: "更新失败",
+                                            message: error.localizedDescription,
+                                            action: .dismiss)
+            }
+        }
+    }
 
     func checkRoute() {
         let target = gateway.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -976,9 +1072,19 @@ struct ContentView: View {
                 actionArea
                 trafficCard
                 logCard
-                Text("实验客户端 · 凭据仅保存在本机 · 兼容 H3C TLS VPN")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                Group {
+                    if model.isUpdating {
+                        HStack(spacing: 7) {
+                            ProgressView().controlSize(.small)
+                            Text(model.updateStatusText)
+                        }
+                    } else {
+                        Text("实验客户端 · 凭据仅保存在本机 · 兼容 H3C TLS VPN")
+                    }
+                }
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .frame(height: 16)
             }
             .padding(.horizontal, 14)
             .padding(.top, 14)
@@ -989,6 +1095,7 @@ struct ContentView: View {
         .onAppear {
             applyBundledAppIcon()
             model.checkRoute()
+            model.checkForUpdatesOnLaunch()
         }
         .sheet(item: $gatewayDraft) { profile in
             GatewayEditorView(
@@ -1003,6 +1110,20 @@ struct ContentView: View {
                     model.saveGateway(name: name, address: address, serverPin: pin)
                 }
             )
+        }
+        .alert(item: $model.updateNotice) { notice in
+            switch notice.action {
+            case .install(let release):
+                return Alert(title: Text(notice.title),
+                             message: Text(notice.message),
+                             primaryButton: .default(Text("下载并覆盖")) {
+                                 model.installApplicationUpdate(release)
+                             },
+                             secondaryButton: .cancel(Text("稍后")))
+            case .dismiss:
+                return Alert(title: Text(notice.title), message: Text(notice.message),
+                             dismissButton: .default(Text("好")))
+            }
         }
     }
 
@@ -1222,7 +1343,7 @@ struct ContentView: View {
             .buttonStyle(.borderedProminent)
             .tint(model.isConnected ? .red : .blue)
             .controlSize(.large)
-            .disabled(model.isBusy)
+            .disabled(model.isBusy || model.isInstallingUpdate)
 
             Text(model.statusText)
                 .font(.callout)
@@ -1249,7 +1370,7 @@ struct ContentView: View {
                 Button(model.helperInstalled || model.helperNeedsUpdate ? "更新服务" : "安装服务") {
                     model.installHelper()
                 }
-                .disabled(model.isBusy || model.isConnected)
+                .disabled(model.isBusy || model.isConnected || model.isInstallingUpdate)
             }
             .padding(6)
         } label: {
@@ -1471,11 +1592,18 @@ private struct MenuBarContent: View {
             Button("断开连接") { model.disconnect() }
         } else {
             Button("连接") { model.connect() }
-                .disabled(model.isBusy)
+                .disabled(model.isBusy || model.isInstallingUpdate)
         }
         Divider()
+        Button("检查更新…") {
+            openWindow(id: "main")
+            NSApp.activate(ignoringOtherApps: true)
+            model.checkForUpdates()
+        }
+        .disabled(model.isUpdating)
+        Divider()
         Button("退出 SSL VPN Connect") { NSApp.terminate(nil) }
-            .disabled(model.isConnected || model.isBusy)
+            .disabled(model.isConnected || model.isBusy || model.isInstallingUpdate)
     }
 }
 
@@ -1491,10 +1619,15 @@ struct H3CVPNApp: App {
         .windowResizability(.contentSize)
         .commands {
             CommandGroup(replacing: .newItem) { }
+            CommandGroup(after: .appInfo) {
+                Button("检查更新…") { model.checkForUpdates() }
+                    .keyboardShortcut("u")
+                    .disabled(model.isUpdating)
+            }
             CommandGroup(replacing: .appTermination) {
                 Button("退出 SSL VPN Connect") { NSApp.terminate(nil) }
                     .keyboardShortcut("q")
-                    .disabled(model.isConnected || model.isBusy)
+                    .disabled(model.isConnected || model.isBusy || model.isInstallingUpdate)
             }
         }
 

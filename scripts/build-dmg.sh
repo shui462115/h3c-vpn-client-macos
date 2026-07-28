@@ -27,9 +27,16 @@ CLANG_MODULE_CACHE_PATH="$ROOT/.module-cache" swiftc \
     -sdk /Library/Developer/CommandLineTools/SDKs/MacOSX15.4.sdk \
     -target arm64-apple-macosx13.0 \
     -O -parse-as-library \
-    "$ROOT/GUI/H3CVPNApp.swift" \
+    "$ROOT/GUI/H3CVPNApp.swift" "$ROOT/GUI/H3CVPNUpdate.swift" \
     -framework SwiftUI -framework AppKit \
     -o "$APP/Contents/MacOS/H3CVPN"
+
+CLANG_MODULE_CACHE_PATH="$ROOT/.module-cache" swiftc \
+    -sdk /Library/Developer/CommandLineTools/SDKs/MacOSX15.4.sdk \
+    -target arm64-apple-macosx13.0 \
+    -O \
+    "$ROOT/GUI/H3CVPNUpdater.swift" \
+    -o "$APP/Contents/Resources/H3CVPNUpdater"
 
 cp "$ROOT/GUI/Info.plist" "$APP/Contents/Info.plist"
 cp "$ROOT/GUI/Assets/AppIcon.icns" "$APP/Contents/Resources/AppIcon.icns"
@@ -40,7 +47,8 @@ cp "$ROOT/README.md" "$APP/Contents/Resources/README.md"
 cp "$ROOT/TEST-REPORT.md" "$APP/Contents/Resources/TEST-REPORT.md"
 cp "$CLI/THIRD_PARTY_NOTICES.md" "$APP/Contents/Resources/THIRD_PARTY_NOTICES.md"
 cp -R "$CLI/Licenses" "$APP/Contents/Resources/Licenses"
-chmod 755 "$APP/Contents/MacOS/H3CVPN" "$APP/Contents/Resources/openconnect" "$APP/Contents/Resources/vpnc-script"
+chmod 755 "$APP/Contents/MacOS/H3CVPN" "$APP/Contents/Resources/H3CVPNUpdater"
+chmod 755 "$APP/Contents/Resources/openconnect" "$APP/Contents/Resources/vpnc-script"
 chmod 755 "$APP/Contents/Resources/com.codex.h3cvpn.helper"
 
 for item in "$APP/Contents/Resources/"*.dylib; do
@@ -48,6 +56,7 @@ for item in "$APP/Contents/Resources/"*.dylib; do
 done
 codesign --force --sign - "$APP/Contents/Resources/openconnect"
 codesign --force --sign - "$APP/Contents/Resources/com.codex.h3cvpn.helper"
+codesign --force --sign - "$APP/Contents/Resources/H3CVPNUpdater"
 codesign --force --deep --sign - "$APP"
 
 cp -R "$APP" "$STAGE/SSL VPN Connect.app"
