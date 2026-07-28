@@ -13,7 +13,11 @@ Date: 2026-07-28
 - GUI now installs a restricted LaunchDaemon once; subsequent start/stop requests use a local peer-checked Unix socket without repeating authorization prompts.
 - Helper installation enables a persistently disabled launchd service before bootstrap, preventing macOS error 5; copied privileged files have extended attributes cleared and the plist is linted before registration.
 - Helper installation failures are copied to the connection log so the full launchctl error remains visible instead of being truncated in the authorization card.
-- GUI and helper use protocol version 4; an older helper is detected as outdated and cannot start a connection.
+- Fatal H3C TLS read errors now terminate the OpenConnect main loop instead of being counted as repeated work and spinning indefinitely.
+- Each VPN child has an 8 MiB file-size limit, while the GUI reads at most the final 64 KiB of a log per refresh and stops an abnormal connection at the limit.
+- GUI and helper use protocol version 5; an older helper is detected as outdated and cannot start a connection.
+- The v0.9.2 failure was reproduced with a 26,581,454,384-byte log repeating `Read error on TLS session: 6`; process sampling showed the main thread in `refreshState()` and `configuredVPNAddress(from:)` with a 40.9 GiB physical footprint.
+- The installed v0.9.3 GUI opened normally, rejected the installed protocol-v4 helper as outdated, and remained at 0.0% CPU with about 131 MiB RSS during the post-launch stability check.
 - GUI preferences support optional local username and password persistence without accessing macOS Keychain; the preferences file is owner-only (`0600`).
 - Gateway profiles include display name, endpoint, and pinned certificate; add/edit/remove/switch flows compile successfully.
 - A fresh installation starts with a blank gateway placeholder; no gateway address or certificate pin is embedded in source or packaging metadata.

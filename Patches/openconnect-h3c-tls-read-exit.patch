@@ -1,0 +1,17 @@
+diff --git a/h3c.c b/h3c.c
+index 65a78a1..4755587 100644
+--- a/h3c.c
++++ b/h3c.c
+@@ -531,8 +531,10 @@ int h3c_mainloop(struct openconnect_info *vpninfo, int *timeout, int readable)
+ 		if (!len)
+ 			break;
+ 		if (len < 0) {
+-			/* goto do_reconnect; */
+-			return -1;
++			/* Modified by SSL VPN Connect: the generic main loop treats a
++			 * negative work count as activity unless quit_reason is set. */
++			vpninfo->quit_reason = "Fatal H3C TLS read error";
++			return len;
+ 		}
+ 
+ 		if (vpninfo->partial_rec_size) {

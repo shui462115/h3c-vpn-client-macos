@@ -5,10 +5,12 @@ import Darwin
 
 private let helperSocketPath = "/var/run/com.codex.h3cvpn.sock"
 private let helperMagic: UInt32 = 0x48334356
-private let helperVersion: UInt32 = 4
+private let helperVersion: UInt32 = 5
 private let helperStart: UInt32 = 1
 private let helperStop: UInt32 = 2
 private let helperStatusCommand: UInt32 = 3
+private let logTailReadLimit: UInt64 = 64 * 1024
+private let maxConnectionLogBytes: UInt64 = 8 * 1024 * 1024
 private let connectionEstablishmentTimeout: TimeInterval = 30
 
 private enum PreferenceKey {
@@ -201,12 +203,29 @@ private func configuredVPNAddress(from log: String) -> String? {
     return nil
 }
 
+private struct ConnectionLogSnapshot {
+    let text: String
+    let size: UInt64
+}
+
+private func connectionLogSnapshot(at url: URL) throws -> ConnectionLogSnapshot {
+    let handle = try FileHandle(forReadingFrom: url)
+    defer { try? handle.close() }
+    let size = try handle.seekToEnd()
+    try handle.seek(toOffset: size > logTailReadLimit ? size - logTailReadLimit : 0)
+    let data = try handle.read(upToCount: Int(logTailReadLimit)) ?? Data()
+    return ConnectionLogSnapshot(text: String(decoding: data, as: UTF8.self), size: size)
+}
+
 private func connectionFailureMessage(from log: String) -> String? {
     if log.contains("Login error:") || log.contains("Failed to complete authentication") {
         return "认证失败，请检查用户名、密码、认证服务器或账号在线人数限制"
     }
     if log.contains("SSL connection failure") {
         return "SSL 连接失败"
+    }
+    if log.contains("Read error on TLS session") {
+        return "VPN TLS 通道已关闭"
     }
     if log.contains("Failed to connect to host") {
         return "无法连接 VPN 网关"
@@ -381,6 +400,7 @@ final class VPNViewModel: ObservableObject {
     private var timer: Timer?
     private var connectionStartedAt: Date?
     private var connectionEstablished = false
+    private var vpnAddress: String?
     private var isRefreshingState = false
     private var lastTrafficSample: (date: Date, received: UInt64, sent: UInt64, interface: String)?
     private let defaults = UserDefaults.standard
@@ -754,6 +774,7 @@ final class VPNViewModel: ObservableObject {
             return
         }
         logURL = log
+        vpnAddress = nil
         logText = suppliedInterface.isEmpty
             ? "正在自动选择网口连接 \(suppliedGateway)…"
             : "正在通过 \(suppliedInterface) 连接 \(suppliedGateway)…"
@@ -784,8 +805,8 @@ final class VPNViewModel: ObservableObject {
                 timer = nil
                 isBusy = false
                 statusText = "连接未启动：\(error.localizedDescription)"
-                if let text = try? String(contentsOf: log, encoding: .utf8), !text.isEmpty {
-                    logText = "\(text)\n\(statusText)"
+                if let snapshot = try? connectionLogSnapshot(at: log), !snapshot.text.isEmpty {
+                    logText = "\(snapshot.text)\n\(statusText)"
                 } else {
                     logText = statusText
                 }
@@ -832,17 +853,23 @@ final class VPNViewModel: ObservableObject {
     private func refreshState() {
         var failureMessage: String?
         var hasVPNAddress = false
-        if let logURL, let text = try? String(contentsOf: logURL, encoding: .utf8), !text.isEmpty {
-            logText = String(text.suffix(12_000))
-            if let address = configuredVPNAddress(from: text) {
+        if let logURL, let snapshot = try? connectionLogSnapshot(at: logURL), !snapshot.text.isEmpty {
+            logText = String(snapshot.text.suffix(12_000))
+            failureMessage = connectionFailureMessage(from: snapshot.text)
+            if snapshot.size >= maxConnectionLogBytes, failureMessage == nil {
+                failureMessage = "连接日志达到 8 MB 上限，已自动停止异常连接"
+            }
+            if let address = configuredVPNAddress(from: snapshot.text) {
+                vpnAddress = address
                 hasVPNAddress = true
                 if !connectionEstablished {
                     connectionEstablished = true
                     statusText = "已连接，VPN 地址 \(address)"
                 }
                 updateTraffic(for: address)
-            } else {
-                failureMessage = connectionFailureMessage(from: text)
+            } else if let vpnAddress {
+                hasVPNAddress = true
+                updateTraffic(for: vpnAddress)
             }
         }
         guard let pid = vpnPID else { return }
@@ -919,6 +946,7 @@ final class VPNViewModel: ObservableObject {
         isBusy = false
         connectionStartedAt = nil
         connectionEstablished = false
+        vpnAddress = nil
         isRefreshingState = false
         defaults.removeObject(forKey: PreferenceKey.lastLogPath)
         resetTraffic()

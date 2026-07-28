@@ -17,6 +17,10 @@ H3C 和 iNode 是其各自权利人的商标。SSL VPN Connect 是独立开发�
 
 `0.9.2` 修复了后台服务曾被 macOS 持久化禁用时，安装器先注册、后启用而触发的 `Bootstrap failed: 5`。新版会先恢复服务启用状态，再向 `launchd` 注册；无需手工执行终端命令。
 
+`0.9.3` 修复了 TLS 通道关闭后连接核心重复刷写错误日志、GUI 每秒读取完整日志而导致 CPU 满载、内存暴涨和窗口无响应的问题。连接核心现在会在致命 TLS 读取错误后退出；后台服务将单次连接日志硬限制为 8 MB，GUI 每次最多只读取末尾 64 KiB。
+
+从旧版本升级到 `0.9.3` 后必须点击一次“更新服务”，以安装包含日志硬限制和 TLS 退出修复的新后台服务及连接核心。
+
 图形客户端支持路由冲突检测、密码安全输入、连接/断开、实时日志和证书固定。当前安装包使用本地临时签名，未经过 Apple Developer ID 公证；首次打开时请核对安装包来源和 SHA-256 后自行决定是否允许运行。
 
 后台服务只接受安装它的当前 macOS 用户通过本机 socket 请求，并且只调用安装包内固定的兼容连接核心和 `vpnc-script`；它不是一个可执行任意命令的 root shell。
@@ -79,7 +83,7 @@ sudo ./h3c-vpn --gateway HOST:PORT --username USER \
 
 `scripts/build-dmg.sh` 会进一步编译 SwiftUI 图形界面，并生成 DMG。
 
-构建依赖：Xcode Command Line Tools、Homebrew，以及 `autoconf automake libtool pkg-config openssl@3 libxml2 lz4`。发布版 `0.9.1` 使用的具体版本记录在 `BUILD-INFO.txt`。
+构建依赖：Xcode Command Line Tools、Homebrew，以及 `autoconf automake libtool pkg-config openssl@3 libxml2 lz4`。发布包使用的具体版本记录在 `BUILD-INFO.txt`。
 
 ```bash
 ./scripts/build.sh

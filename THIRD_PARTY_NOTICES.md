@@ -10,15 +10,17 @@ repository and the macOS package.
 - Commit: `22b2218d10e9cb3fb072db7f3e65c6fda44f68c0`
 - License: GNU Lesser General Public License 2.1; individual files retain any
   more permissive or later-version notices stated in their source headers.
-- Local modification: macOS outbound-interface binding support, documented in
-  `Patches/openconnect-macos-bound-interface.patch`.
+- Local modifications: macOS outbound-interface binding support and fatal H3C
+  TLS read-error termination, documented in
+  `Patches/openconnect-macos-bound-interface.patch` and
+  `Patches/openconnect-h3c-tls-read-exit.patch`.
 
 The built-in JSON parser used by this OpenConnect build is Copyright (C)
 2012-2014 James McLaughlin et al. and is distributed under its BSD 2-Clause
 license. See `Licenses/OpenConnect-JSON-BSD-2-Clause.txt`.
 
 The complete corresponding OpenConnect source, including the local
-modification, is included in the source archive attached alongside every
+modifications, is included in the source archive attached alongside every
 binary release. Recipients who receive the DMG outside GitHub must also be
 given access to that source archive.
 

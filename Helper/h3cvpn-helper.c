@@ -11,6 +11,7 @@
 #include <string.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
+#include <sys/resource.h>
 #include <sys/un.h>
 #include <sys/wait.h>
 #include <unistd.h>
@@ -20,7 +21,7 @@
 #define SCRIPT_PATH "/Library/H3CVPN/Resources/vpnc-script"
 #define OWNER_PATH "/Library/H3CVPN/owner.uid"
 #define MAGIC 0x48334356u
-#define VERSION 4u
+#define VERSION 5u
 #define CMD_START 1u
 #define CMD_STOP 2u
 #define CMD_STATUS 3u
@@ -32,6 +33,7 @@
 #define MAX_INTERFACE IFNAMSIZ
 #define STOP_TIMEOUT_MS 10000
 #define STOP_POLL_INTERVAL_US 100000
+#define MAX_LOG_FILE_SIZE (8u * 1024u * 1024u)
 
 static pid_t active_pid = 0;
 static uid_t active_uid = (uid_t)-1;
@@ -166,6 +168,8 @@ static int start_vpn(uid_t uid, const char *gateway, const char *username,
         return -1;
     }
     if (child == 0) {
+        struct rlimit log_limit = {MAX_LOG_FILE_SIZE, MAX_LOG_FILE_SIZE};
+        if (setrlimit(RLIMIT_FSIZE, &log_limit) != 0) _exit(125);
         int log_fd = open(log_path, O_WRONLY | O_APPEND);
         if (log_fd < 0) _exit(126);
         dup2(password_pipe[0], STDIN_FILENO);

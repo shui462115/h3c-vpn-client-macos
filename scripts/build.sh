@@ -5,6 +5,7 @@ ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 VENDOR="$ROOT/.vendor"
 OC="$VENDOR/openconnect-h3c"
 BIND_PATCH="$ROOT/Patches/openconnect-macos-bound-interface.patch"
+TLS_READ_PATCH="$ROOT/Patches/openconnect-h3c-tls-read-exit.patch"
 DIST="$ROOT/dist/H3CVPN-macos-arm64"
 OC_COMMIT=22b2218d10e9cb3fb072db7f3e65c6fda44f68c0
 VPNC_COMMIT=ce9e961bd0f6b867e1c7c35f78f6fb973f6ff101
@@ -29,8 +30,15 @@ fi
 if ! grep -q 'H3CVPN_BOUND_INTERFACE' "$OC/main.c"; then
     (cd "$OC" && patch -p1 < "$BIND_PATCH")
 fi
+if ! grep -q 'Fatal H3C TLS read error' "$OC/h3c.c"; then
+    (cd "$OC" && patch -p1 < "$TLS_READ_PATCH")
+fi
 if ! grep -q 'Modified by the SSL VPN Connect project on 2026-07-28' "$OC/main.c"; then
     echo "OpenConnect patch is missing its required modification notice." >&2
+    exit 1
+fi
+if ! grep -q 'Modified by SSL VPN Connect' "$OC/h3c.c"; then
+    echo "OpenConnect H3C TLS read patch is missing its modification notice." >&2
     exit 1
 fi
 

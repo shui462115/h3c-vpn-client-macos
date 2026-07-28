@@ -36,6 +36,7 @@ git -C "$ROOT" archive --format=tar "$PROJECT_COMMIT" | tar -xf - -C "$PACKAGE/p
 git -C "$OC" archive --format=tar "$OC_COMMIT" | tar -xf - -C "$PACKAGE/third_party/openconnect"
 git -C "$VPNC" archive --format=tar "$VPNC_COMMIT" | tar -xf - -C "$PACKAGE/third_party/vpnc-scripts"
 patch -d "$PACKAGE/third_party/openconnect" -p1 < "$ROOT/Patches/openconnect-macos-bound-interface.patch"
+patch -d "$PACKAGE/third_party/openconnect" -p1 < "$ROOT/Patches/openconnect-h3c-tls-read-exit.patch"
 
 /usr/bin/printf '%s\n' \
     "Project commit: $PROJECT_COMMIT" \
