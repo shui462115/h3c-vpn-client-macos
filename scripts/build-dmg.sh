@@ -4,9 +4,9 @@ set -eu
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 CLI="$ROOT/dist/H3CVPN-macos-arm64"
 BUILD="$ROOT/dist/gui-build"
-APP="$BUILD/H3C VPN.app"
+APP="$BUILD/SSL VPN Connect.app"
 STAGE="$ROOT/dist/dmg-stage"
-OUTPUT=${1:-"$ROOT/dist/H3CVPN-macOS-arm64.dmg"}
+OUTPUT=${1:-"$ROOT/dist/SSLVPNConnect-macOS-arm64.dmg"}
 
 if [ ! -x "$CLI/Resources/openconnect" ]; then
     "$ROOT/scripts/build.sh"
@@ -38,8 +38,8 @@ cp "$ROOT/dist/helper-build/com.codex.h3cvpn.helper" "$APP/Contents/Resources/co
 cp "$ROOT/Helper/com.codex.h3cvpn.helper.plist" "$APP/Contents/Resources/com.codex.h3cvpn.helper.plist"
 cp "$ROOT/README.md" "$APP/Contents/Resources/README.md"
 cp "$ROOT/TEST-REPORT.md" "$APP/Contents/Resources/TEST-REPORT.md"
-cp "$CLI/COPYING.LGPL" "$APP/Contents/Resources/COPYING.LGPL"
-cp "$CLI/COPYING.vpnc-scripts" "$APP/Contents/Resources/COPYING.vpnc-scripts"
+cp "$CLI/THIRD_PARTY_NOTICES.md" "$APP/Contents/Resources/THIRD_PARTY_NOTICES.md"
+cp -R "$CLI/Licenses" "$APP/Contents/Resources/Licenses"
 chmod 755 "$APP/Contents/MacOS/H3CVPN" "$APP/Contents/Resources/openconnect" "$APP/Contents/Resources/vpnc-script"
 chmod 755 "$APP/Contents/Resources/com.codex.h3cvpn.helper"
 
@@ -50,9 +50,11 @@ codesign --force --sign - "$APP/Contents/Resources/openconnect"
 codesign --force --sign - "$APP/Contents/Resources/com.codex.h3cvpn.helper"
 codesign --force --deep --sign - "$APP"
 
-cp -R "$APP" "$STAGE/H3C VPN.app"
+cp -R "$APP" "$STAGE/SSL VPN Connect.app"
 ln -s /Applications "$STAGE/Applications"
 cp "$ROOT/README.md" "$STAGE/使用说明.md"
+cp "$ROOT/THIRD_PARTY_NOTICES.md" "$STAGE/第三方软件声明.md"
+cp -R "$ROOT/Licenses" "$STAGE/开源许可证"
 
-hdiutil create -volname "H3C VPN" -srcfolder "$STAGE" -ov -format UDZO "$OUTPUT"
+hdiutil create -volname "SSL VPN Connect" -srcfolder "$STAGE" -ov -format UDZO "$OUTPUT"
 echo "Built: $OUTPUT"

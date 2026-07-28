@@ -720,7 +720,7 @@ final class VPNViewModel: ObservableObject {
             return
         }
         isBusy = true
-        statusText = "正在启动 H3C SSL VPN…"
+        statusText = "正在启动兼容 H3C 的 SSL VPN…"
         let suppliedPassword = password
         let suppliedPin = selectedProfile.serverPin.trimmingCharacters(in: .whitespacesAndNewlines)
         guard isValidServerPin(suppliedPin) else {
@@ -944,7 +944,7 @@ struct ContentView: View {
                 actionArea
                 trafficCard
                 logCard
-                Text("实验客户端 · 凭据仅保存在本机 · H3C TLS VPN")
+                Text("实验客户端 · 凭据仅保存在本机 · 兼容 H3C TLS VPN")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -993,7 +993,7 @@ struct ContentView: View {
             }
             .frame(width: 48, height: 48)
             VStack(alignment: .leading, spacing: 3) {
-                Text("H3C VPN")
+                Text("SSL VPN Connect")
                     .font(.system(size: 22, weight: .bold))
                     .foregroundStyle(.white)
                 Text("macOS 安全接入客户端")
@@ -1430,7 +1430,7 @@ private struct MenuBarContent: View {
                 .font(.system(.caption, design: .monospaced))
         }
         Divider()
-        Button("打开 H3C VPN") {
+        Button("打开 SSL VPN Connect") {
             openWindow(id: "main")
             NSApp.activate(ignoringOtherApps: true)
         }
@@ -1441,7 +1441,7 @@ private struct MenuBarContent: View {
                 .disabled(model.isBusy)
         }
         Divider()
-        Button("退出 H3C VPN") { NSApp.terminate(nil) }
+        Button("退出 SSL VPN Connect") { NSApp.terminate(nil) }
             .disabled(model.isConnected || model.isBusy)
     }
 }
@@ -1452,14 +1452,14 @@ struct H3CVPNApp: App {
     @StateObject private var model = VPNViewModel()
 
     var body: some Scene {
-        Window("H3C VPN", id: "main") {
+        Window("SSL VPN Connect", id: "main") {
             ContentView(model: model)
         }
         .windowResizability(.contentSize)
         .commands {
             CommandGroup(replacing: .newItem) { }
             CommandGroup(replacing: .appTermination) {
-                Button("退出 H3C VPN") { NSApp.terminate(nil) }
+                Button("退出 SSL VPN Connect") { NSApp.terminate(nil) }
                     .keyboardShortcut("q")
                     .disabled(model.isConnected || model.isBusy)
             }

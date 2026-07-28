@@ -1,11 +1,13 @@
-# H3C VPN Client for macOS（实验版）
+# SSL VPN Connect for macOS（实验版）
 
-这是一个面向 macOS 的 H3C SSL VPN 实验客户端。它不重新实现加密协议，而是把带有 H3C `--protocol=h3c` 支持的 OpenConnect 核心封装成图形应用和安全命令行客户端。
+这是一个兼容 H3C SSL VPN 的非官方 macOS 实验客户端。它不包含 H3C 或 iNode 官方代码、图标或客户端二进制，而是把带有 H3C `--protocol=h3c` 支持的开源 OpenConnect 核心封装成图形应用和安全命令行客户端。
+
+H3C 和 iNode 是其各自权利人的商标。SSL VPN Connect 是独立开发的兼容性工具，与 H3C 不存在关联、授权、赞助或官方分发关系。
 
 ## 图形界面安装
 
-1. 双击 `H3CVPN-macOS-arm64.dmg`。
-2. 将“`H3C VPN`”拖入“应用程序”。
+1. 双击 `SSLVPNConnect-macOS-arm64.dmg`。
+2. 将“`SSL VPN Connect`”拖入“应用程序”。
 3. 打开应用，添加 VPN 网关并自动获取或填写管理员确认的证书指纹。
 4. 点击“安装服务”，完成一次 macOS 管理员授权，然后输入用户名和密码。
 5. 先关闭 Shadowrocket 或其他全局 VPN，再点击“连接 SSL VPN”。
@@ -15,7 +17,7 @@
 
 图形客户端支持路由冲突检测、密码安全输入、连接/断开、实时日志和证书固定。当前安装包使用本地临时签名，未经过 Apple Developer ID 公证；首次打开时请核对安装包来源和 SHA-256 后自行决定是否允许运行。
 
-后台服务只接受安装它的当前 macOS 用户通过本机 socket 请求，并且只调用安装包内固定的 H3C 核心和 `vpnc-script`；它不是一个可执行任意命令的 root shell。
+后台服务只接受安装它的当前 macOS 用户通过本机 socket 请求，并且只调用安装包内固定的兼容连接核心和 `vpnc-script`；它不是一个可执行任意命令的 root shell。
 
 ## 图形客户端偏好
 
@@ -68,22 +70,29 @@ sudo ./h3c-vpn --gateway HOST:PORT --username USER \
 
 `scripts/build.sh` 会：
 
-1. 构建 H3C OpenConnect 实验分支（commit `22b2218`）；
-2. 获取官方 `vpnc-scripts`；
+1. 校验并构建 OpenConnect H3C 实验分支的固定提交 `22b2218d10e9cb3fb072db7f3e65c6fda44f68c0`；
+2. 校验官方 `vpnc-scripts` 固定提交 `ce9e961bd0f6b867e1c7c35f78f6fb973f6ff101`；
 3. 编译原生 C 安全启动器；
 4. 生成 `dist/H3CVPN-macos-arm64/`。
 
 `scripts/build-dmg.sh` 会进一步编译 SwiftUI 图形界面，并生成 DMG。
 
-构建依赖：Xcode Command Line Tools、Homebrew，以及 `autoconf automake libtool pkg-config openssl@3 libxml2`。
+构建依赖：Xcode Command Line Tools、Homebrew，以及 `autoconf automake libtool pkg-config openssl@3 libxml2 lz4`。发布版 `0.9.1` 使用的具体版本记录在 `BUILD-INFO.txt`。
 
 ```bash
 ./scripts/build.sh
+./scripts/build-dmg.sh
+```
+
+提交项目修改后，可生成与二进制 Release 对应的完整源码包：
+
+```bash
+./scripts/build-sources.sh
 ```
 
 ## 限制
 
-这是实验客户端，不是 H3C 官方产品。当前 H3C OpenConnect 分支的协议实现比较粗糙，未覆盖所有 H3C 网关的证书、OTP、短信或定制认证流程。生产环境请保留 iNode 作为回退方案，并先让网络管理员确认允许第三方客户端。
+这是非官方实验客户端。当前 OpenConnect H3C 分支的协议实现比较粗糙，未覆盖所有网关的证书、OTP、短信或定制认证流程。生产环境请保留官方客户端作为回退方案，并先让网络管理员确认允许第三方客户端。
 
 不要把密码、iNode `.icnf` 文件或包含认证信息的日志提交到仓库。
 
@@ -91,4 +100,5 @@ sudo ./h3c-vpn --gateway HOST:PORT --username USER \
 
 - H3C OpenConnect experimental branch: <https://gitlab.com/vimacs.hacks/openconnect>
 - OpenConnect vpnc-scripts: <https://gitlab.com/openconnect/vpnc-scripts>
-- OpenConnect is LGPL-2.1-or-later; see the bundled `COPYING.LGPL` in the source checkout.
+- OpenConnect、vpnc-scripts、OpenSSL、libxml2、LZ4 和内置 JSON 解析器的版本、版权归属与许可证见 `THIRD_PARTY_NOTICES.md`；完整许可证文本位于 `Licenses/`。
+- 每个二进制 Release 同时提供对应源码压缩包。把 DMG 转发给其他人时，也必须向接收者提供该源码包。

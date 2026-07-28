@@ -24,7 +24,7 @@ static void secure_clear(void *buffer, size_t length) {
 }
 
 static void usage(FILE *out) {
-    fprintf(out, "H3C VPN client for macOS (experimental)\n\n"
+    fprintf(out, "SSL VPN Connect for macOS (H3C compatible, experimental)\n\n"
         "Usage: sudo h3c-vpn --gateway HOST:PORT --servercert PIN --username USER\n\n"
         "Required for connection: --gateway HOST:PORT --servercert pin-sha256:... --username USER\n"
         "Options: --core PATH --script PATH\n"

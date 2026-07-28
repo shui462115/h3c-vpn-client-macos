@@ -26,6 +26,9 @@ Date: 2026-07-28
 - A native 1024px icon master and complete multi-resolution `AppIcon.icns` are generated during packaging.
 - Traffic accounting parses the assigned VPN IPv4 address, matches only its `utun` interface through `getifaddrs`, and samples inbound/outbound byte counters once per second.
 - DMG checksum verification passed; the image mounted read-only, contained the app and Applications shortcut, and the app passed deep code-signature verification.
+- Dependency commits are pinned and verified before building; release source archives contain the exact patched OpenConnect and vpnc-scripts source trees.
+- The DMG and application resources include third-party notices plus the LGPL, GPL, Apache-2.0, MIT, and BSD license texts required by bundled components.
+- Visible product branding uses `SSL VPN Connect`; H3C and iNode appear only in compatibility and trademark notices, and the generated icon contains no vendor logo.
 - OpenConnect upstream unit tests: 4 passed, 1 failed. The failing `bad_dtls_test` uses an old Cisco DTLS case rejected by OpenSSL 3.6 (`no protocols available`). The H3C implementation in this package is TLS-only and does not use that DTLS path.
 
 Not performed:

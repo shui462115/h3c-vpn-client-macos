@@ -253,7 +253,7 @@ static void handle_client(int client) {
         if (result == -2) {
             send_response(client, -2, active_pid, "已有连接进程");
         } else if (result != 0) {
-            send_response(client, -16, 0, "无法启动 H3C 核心");
+            send_response(client, -16, 0, "无法启动 SSL VPN 连接核心");
         } else {
             send_response(client, 0, pid, "连接进程已启动");
         }
