@@ -1,0 +1,78 @@
+diff --git a/main.c b/main.c
+index 2bbb06a..db37d35 100644
+--- a/main.c
++++ b/main.c
+@@ -59,6 +59,11 @@
+ #include <errno.h>
+ #include <time.h>
+ 
++#ifdef __APPLE__
++#include <net/if.h>
++#include <netinet/in.h>
++#endif
++
+ #ifdef HAVE_NL_LANGINFO
+ #include <langinfo.h>
+ 
+@@ -114,6 +119,39 @@ static int last_form_empty;
+ static int sig_cmd_fd;
+ static struct openconnect_info *sig_vpninfo;
+ 
++#ifdef __APPLE__
++static unsigned int outbound_interface_index;
++static char outbound_interface_name[IFNAMSIZ];
++
++static void bind_outbound_socket(void *cbdata, int fd)
++{
++	struct openconnect_info *vpninfo = cbdata;
++	struct sockaddr_storage address;
++	socklen_t address_len = sizeof(address);
++	int result = -1;
++
++	memset(&address, 0, sizeof(address));
++	if (!getsockname(fd, (struct sockaddr *)&address, &address_len)) {
++		if (address.ss_family == AF_INET)
++			result = setsockopt(fd, IPPROTO_IP, IP_BOUND_IF,
++					    &outbound_interface_index, sizeof(outbound_interface_index));
++		else if (address.ss_family == AF_INET6)
++			result = setsockopt(fd, IPPROTO_IPV6, IPV6_BOUND_IF,
++					    &outbound_interface_index, sizeof(outbound_interface_index));
++	}
++	if (result) {
++		vpn_progress(vpninfo, PRG_ERR,
++			     _("Failed to bind outbound socket to interface %s: %s\n"),
++			     outbound_interface_name, strerror(errno));
++		close(fd);
++	} else {
++		vpn_progress(vpninfo, PRG_INFO,
++			     _("Bound outbound socket to interface %s\n"),
++			     outbound_interface_name);
++	}
++}
++#endif
++
+ static void add_form_field(char *field);
+ 
+ #ifdef __ANDROID__
+@@ -1795,6 +1833,21 @@ int main(int argc, char **argv)
+ 	}
+ 
+ 	vpninfo->cbdata = vpninfo;
++#ifdef __APPLE__
++	{
++		const char *selected_interface = getenv("H3CVPN_BOUND_INTERFACE");
++		if (selected_interface && selected_interface[0]) {
++			outbound_interface_index = if_nametoindex(selected_interface);
++			if (!outbound_interface_index) {
++				fprintf(stderr, _("Invalid outbound interface '%s'\n"), selected_interface);
++				exit(1);
++			}
++			snprintf(outbound_interface_name, sizeof(outbound_interface_name), "%s",
++				 selected_interface);
++			openconnect_set_protect_socket_handler(vpninfo, bind_outbound_socket);
++		}
++	}
++#endif
+ #ifdef _WIN32
+ 	set_default_vpncscript();
+ #else

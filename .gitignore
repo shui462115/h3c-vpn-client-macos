@@ -1,0 +1,14 @@
+.DS_Store
+.module-cache/
+.vendor/
+dist/
+
+# Legacy/generated local binaries; build scripts recreate these under dist/.
+/h3c-vpn
+/Resources/
+
+*.dmg
+*.tar.gz
+*.log
+DerivedData/
+.swiftpm/

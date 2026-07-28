@@ -1,0 +1,6 @@
+H3CVPN experimental macOS client
+Architecture: arm64
+OpenConnect branch: h3cssl (H3C protocol)
+vpnc-scripts: master
+Gateway: configured by user
+Server certificate pin: configured by user or fetched from gateway
