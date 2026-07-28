@@ -11,6 +11,8 @@ Date: 2026-07-28
 - SwiftUI GUI compiled for native `arm64`, deployment target macOS 13.0, and was visually checked using an AppKit-hosted off-screen render.
 - GUI includes gateway, username, secure password, route status, conflict warning, connect/disconnect, and live log controls.
 - GUI now installs a restricted LaunchDaemon once; subsequent start/stop requests use a local peer-checked Unix socket without repeating authorization prompts.
+- Helper installation enables a persistently disabled launchd service before bootstrap, preventing macOS error 5; copied privileged files have extended attributes cleared and the plist is linted before registration.
+- Helper installation failures are copied to the connection log so the full launchctl error remains visible instead of being truncated in the authorization card.
 - GUI and helper use protocol version 4; an older helper is detected as outdated and cannot start a connection.
 - GUI preferences support optional local username and password persistence without accessing macOS Keychain; the preferences file is owner-only (`0600`).
 - Gateway profiles include display name, endpoint, and pinned certificate; add/edit/remove/switch flows compile successfully.

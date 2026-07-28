@@ -631,6 +631,8 @@ final class VPNViewModel: ObservableObject {
                 isBusy = false
                 helperInstalled = false
                 helperStatus = "安装失败：\(error.localizedDescription)"
+                statusText = "后台服务安装失败，请查看连接日志"
+                logText = helperStatus
             }
         }
     }
@@ -647,6 +649,7 @@ final class VPNViewModel: ObservableObject {
                              "liblz4.1.dylib", "libopenconnect.5.dylib"]
         let ownerUID = String(getuid())
         var commands = ["/bin/mkdir -p \(shellQuote(resourceDirectory))",
+                        "( /bin/launchctl bootout system/com.codex.h3cvpn.helper >/dev/null 2>&1 || true )",
                         "/usr/bin/printf %s \(shellQuote(ownerUID)) > \(shellQuote(ownerPath))",
                         "/bin/cp -f \(shellQuote(resources[0])) \(shellQuote(helperDestination))",
                         "/bin/cp -f \(shellQuote(resources[1])) \(shellQuote(plistDestination))"]
@@ -654,13 +657,14 @@ final class VPNViewModel: ObservableObject {
             commands.append("/bin/cp -f \(shellQuote(resources[index])) \(shellQuote(resourceDirectory + "/" + resourceNames[index]))")
         }
         commands += [
+            "/usr/bin/xattr -cr \(shellQuote(resourceDirectory)) \(shellQuote(helperDestination)) \(shellQuote(plistDestination))",
             "/usr/sbin/chown -R root:wheel \(shellQuote(resourceDirectory)) \(shellQuote(ownerPath)) \(shellQuote(helperDestination)) \(shellQuote(plistDestination))",
             "/bin/chmod 644 \(shellQuote(ownerPath))",
             "/bin/chmod 755 \(shellQuote(helperDestination)) \(shellQuote(resourceDirectory + "/openconnect")) \(shellQuote(resourceDirectory + "/vpnc-script"))",
             "/bin/chmod 644 \(shellQuote(plistDestination)) \(shellQuote(resourceDirectory + "/libcrypto.3.dylib")) \(shellQuote(resourceDirectory + "/libssl.3.dylib")) \(shellQuote(resourceDirectory + "/libxml2.16.dylib")) \(shellQuote(resourceDirectory + "/liblz4.1.dylib")) \(shellQuote(resourceDirectory + "/libopenconnect.5.dylib"))",
-            "/bin/launchctl bootout system/com.codex.h3cvpn.helper >/dev/null 2>&1 || true",
-            "/bin/launchctl bootstrap system \(shellQuote(plistDestination))",
-            "/bin/launchctl enable system/com.codex.h3cvpn.helper"
+            "/usr/bin/plutil -lint \(shellQuote(plistDestination)) >/dev/null",
+            "/bin/launchctl enable system/com.codex.h3cvpn.helper",
+            "( /bin/launchctl bootstrap system \(shellQuote(plistDestination)) || { /bin/sleep 1; /bin/launchctl bootstrap system \(shellQuote(plistDestination)); } )"
         ]
         let command = commands.joined(separator: " && ")
         let source = "do shell script \(appleScriptLiteral(command)) with administrator privileges"
@@ -1211,6 +1215,7 @@ struct ContentView: View {
                     Text(model.helperStatus)
                         .font(.caption)
                         .foregroundStyle(.secondary)
+                        .help(model.helperStatus)
                 }
                 Spacer()
                 Button(model.helperInstalled || model.helperNeedsUpdate ? "更新服务" : "安装服务") {
