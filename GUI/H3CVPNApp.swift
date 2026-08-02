@@ -1052,6 +1052,7 @@ final class VPNViewModel: ObservableObject {
 
 struct ContentView: View {
     @ObservedObject var model: VPNViewModel
+    @Environment(\.openWindow) private var openWindow
     @State private var gatewayDraft: GatewayProfile?
 
     private var routeColor: Color {
@@ -1310,14 +1311,25 @@ struct ContentView: View {
                         Spacer()
                     }
                 }
-                Toggle("仍允许经过现有 utun 隧道连接", isOn: Binding(
-                    get: { model.allowTunnelRoute },
-                    set: { model.setAllowTunnelRoute($0) }
-                ))
-                .toggleStyle(.checkbox)
-                .font(.caption)
+                HStack(spacing: 10) {
+                    Toggle("仍允许经过现有 utun 隧道连接", isOn: Binding(
+                        get: { model.allowTunnelRoute },
+                        set: { model.setAllowTunnelRoute($0) }
+                    ))
+                    .toggleStyle(.checkbox)
+                    .font(.caption)
+                    .disabled(model.isConnected || model.usesExplicitLocalInterface)
+                    Spacer()
+                    Button {
+                        openWindow(id: "routes")
+                        NSApp.activate(ignoringOtherApps: true)
+                    } label: {
+                        Label("固定路由…", systemImage: "arrow.triangle.branch")
+                    }
+                    .controlSize(.small)
+                    .help("管理任意域名或 IPv4 到本地网卡的固定路由")
+                }
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .disabled(model.isConnected || model.usesExplicitLocalInterface)
             }
             .padding(6)
         } label: {
@@ -1572,6 +1584,7 @@ private struct GatewayEditorView: View {
 
 private struct MenuBarContent: View {
     @ObservedObject var model: VPNViewModel
+    @ObservedObject var routeModel: LocalRouteManagerViewModel
     @Environment(\.openWindow) private var openWindow
 
     var body: some View {
@@ -1588,6 +1601,12 @@ private struct MenuBarContent: View {
             openWindow(id: "main")
             NSApp.activate(ignoringOtherApps: true)
         }
+        Button("本地路由配置…") {
+            openWindow(id: "routes")
+            NSApp.activate(ignoringOtherApps: true)
+        }
+        Text("固定路由：\(routeModel.enabledRuleCount)/\(routeModel.rules.count) 条启用")
+            .font(.caption)
         if model.isConnected {
             Button("断开连接") { model.disconnect() }
         } else {
@@ -1603,7 +1622,32 @@ private struct MenuBarContent: View {
         .disabled(model.isUpdating)
         Divider()
         Button("退出 SSL VPN Connect") { NSApp.terminate(nil) }
-            .disabled(model.isConnected || model.isBusy || model.isInstallingUpdate)
+            .disabled(model.isConnected || model.isBusy || model.isInstallingUpdate || routeModel.isBusy)
+    }
+}
+
+private struct H3CVPNCommands: Commands {
+    @ObservedObject var model: VPNViewModel
+    @ObservedObject var routeModel: LocalRouteManagerViewModel
+    @Environment(\.openWindow) private var openWindow
+
+    var body: some Commands {
+        CommandGroup(replacing: .newItem) { }
+        CommandGroup(after: .appInfo) {
+            Button("本地路由配置…") {
+                openWindow(id: "routes")
+                NSApp.activate(ignoringOtherApps: true)
+            }
+            .keyboardShortcut("r", modifiers: [.command, .shift])
+            Button("检查更新…") { model.checkForUpdates() }
+                .keyboardShortcut("u")
+                .disabled(model.isUpdating)
+        }
+        CommandGroup(replacing: .appTermination) {
+            Button("退出 SSL VPN Connect") { NSApp.terminate(nil) }
+                .keyboardShortcut("q")
+                .disabled(model.isConnected || model.isBusy || model.isInstallingUpdate || routeModel.isBusy)
+        }
     }
 }
 
@@ -1611,6 +1655,7 @@ private struct MenuBarContent: View {
 @main
 struct H3CVPNApp: App {
     @StateObject private var model = VPNViewModel()
+    @StateObject private var routeModel = LocalRouteManagerViewModel()
 
     var body: some Scene {
         Window("SSL VPN Connect", id: "main") {
@@ -1618,21 +1663,16 @@ struct H3CVPNApp: App {
         }
         .windowResizability(.contentSize)
         .commands {
-            CommandGroup(replacing: .newItem) { }
-            CommandGroup(after: .appInfo) {
-                Button("检查更新…") { model.checkForUpdates() }
-                    .keyboardShortcut("u")
-                    .disabled(model.isUpdating)
-            }
-            CommandGroup(replacing: .appTermination) {
-                Button("退出 SSL VPN Connect") { NSApp.terminate(nil) }
-                    .keyboardShortcut("q")
-                    .disabled(model.isConnected || model.isBusy || model.isInstallingUpdate)
-            }
+            H3CVPNCommands(model: model, routeModel: routeModel)
         }
 
+        Window("本地网络路由配置", id: "routes") {
+            LocalRouteManagerView(model: routeModel)
+        }
+        .windowResizability(.contentSize)
+
         MenuBarExtra {
-            MenuBarContent(model: model)
+            MenuBarContent(model: model, routeModel: routeModel)
         } label: {
             Image(systemName: model.isConnected ? "shield.checkered" : "shield")
         }

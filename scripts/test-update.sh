@@ -7,13 +7,20 @@ BUILD="$ROOT/dist/update-test"
 APP="$ROOT/dist/gui-build/SSL VPN Connect.app"
 DMG="$ROOT/dist/SSLVPNConnect-macOS-arm64.dmg"
 
-if [ ! -d "$APP" ] || [ ! -f "$DMG" ]; then
-    echo "Build the DMG first with scripts/build-dmg.sh." >&2
-    exit 1
-fi
-
 mkdir -p "$ROOT/.module-cache" "$BUILD"
 export CLANG_MODULE_CACHE_PATH="$ROOT/.module-cache"
+
+swiftc -sdk "$SDK" -target arm64-apple-macosx13.0 -warnings-as-errors \
+    "$ROOT/GUI/H3CVPNRoutes.swift" "$ROOT/Tests/RouteRuleTests.swift" \
+    -framework SwiftUI -framework AppKit \
+    -o "$BUILD/RouteRuleTests"
+"$BUILD/RouteRuleTests"
+"$ROOT/Tests/RouteServiceTests.sh"
+
+if [ ! -d "$APP" ] || [ ! -f "$DMG" ]; then
+    echo "Route tests passed. Build the DMG first with scripts/build-dmg.sh to run update tests." >&2
+    exit 1
+fi
 
 swiftc -sdk "$SDK" -target arm64-apple-macosx13.0 -warnings-as-errors \
     "$ROOT/GUI/H3CVPNUpdate.swift" "$ROOT/Tests/UpdateVersionTests.swift" \

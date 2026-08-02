@@ -27,6 +27,10 @@ H3C 和 iNode 是其各自权利人的商标。SSL VPN Connect 是独立开发�
 
 更新器只接受此仓库 GitHub Release 中名为 `SSLVPNConnect-macOS-arm64.dmg` 的附件，并依次校验 GitHub 提供的文件大小和 SHA-256、应用 Bundle ID、版本、arm64 架构及完整代码签名，最后通过同目录原子交换替换应用。由于当前 Release 使用本地临时签名而非 Apple Developer ID，发布者身份仍依赖 GitHub 仓库及账号安全；请勿从第三方镜像替换 Release 附件。
 
+`0.9.5` 集成了“本地网络路由配置”。在主窗口的网络路径区域点击“固定路由…”，或从菜单栏/应用菜单打开配置窗口，即可把一个域名或 IPv4 地址固定到指定本地网卡。域名规则可选填专用 DNS；留空时使用所选网卡的 DNS。规则保存在当前用户的 `~/Library/Application Support/LocalRouteManager/rules/`（文件权限 `0600`），不会写入网关、账号或密码。
+
+首次保存规则时，如果系统没有兼容的后台路由服务，程序会请求一次管理员授权，安装版本化的 `com.codex.local-route-manager` LaunchDaemon；服务已是当前版本且绑定当前用户规则目录时，后续保存、切换或删除规则不会重复弹出授权。后台任务每 5 秒同步目标主机路由和 `/etc/resolver/` 域名解析，并只清理可验证为本工具创建的路由和带有本工具标记的解析文件；不会覆盖其他软件已有的专用 DNS 配置。DNS 暂时解析失败时保留上次成功路由。它只管理用户明确配置的目标，不改变 VPN 默认路由，也不会替换具有 root 权限的 VPN 服务。旧版 `LocalRouteManager` 规则和多目标配置会自动迁移，首次安装不添加默认网关或目标。
+
 图形客户端支持路由冲突检测、密码安全输入、连接/断开、实时日志和证书固定。当前安装包使用本地临时签名，未经过 Apple Developer ID 公证；首次打开时请核对安装包来源和 SHA-256 后自行决定是否允许运行。
 
 后台服务只接受安装它的当前 macOS 用户通过本机 socket 请求，并且只调用安装包内固定的兼容连接核心和 `vpnc-script`；它不是一个可执行任意命令的 root shell。
@@ -90,7 +94,7 @@ sudo ./h3c-vpn --gateway HOST:PORT --username USER \
 
 `scripts/build-dmg.sh` 会进一步编译 SwiftUI 图形界面，并生成 DMG。
 
-`scripts/test-update.sh` 会测试版本比较、Release 元数据解析、DMG 摘要与应用身份校验，以及独立更新器的覆盖和重新启动流程；运行前需先生成 DMG。
+`scripts/test-update.sh` 会测试本地路由规则校验、版本比较、Release 元数据解析、DMG 摘要与应用身份校验，以及独立更新器的覆盖和重新启动流程；运行前需先生成 DMG。
 
 构建依赖：Xcode Command Line Tools、Homebrew，以及 `autoconf automake libtool pkg-config openssl@3 libxml2 lz4`。发布包使用的具体版本记录在 `BUILD-INFO.txt`。
 

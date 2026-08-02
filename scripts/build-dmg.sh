@@ -27,7 +27,7 @@ CLANG_MODULE_CACHE_PATH="$ROOT/.module-cache" swiftc \
     -sdk /Library/Developer/CommandLineTools/SDKs/MacOSX15.4.sdk \
     -target arm64-apple-macosx13.0 \
     -O -parse-as-library \
-    "$ROOT/GUI/H3CVPNApp.swift" "$ROOT/GUI/H3CVPNUpdate.swift" \
+    "$ROOT/GUI/H3CVPNApp.swift" "$ROOT/GUI/H3CVPNUpdate.swift" "$ROOT/GUI/H3CVPNRoutes.swift" \
     -framework SwiftUI -framework AppKit \
     -o "$APP/Contents/MacOS/H3CVPN"
 
@@ -43,6 +43,8 @@ cp "$ROOT/GUI/Assets/AppIcon.icns" "$APP/Contents/Resources/AppIcon.icns"
 cp "$CLI/Resources/"* "$APP/Contents/Resources/"
 cp "$ROOT/dist/helper-build/com.codex.h3cvpn.helper" "$APP/Contents/Resources/com.codex.h3cvpn.helper"
 cp "$ROOT/Helper/com.codex.h3cvpn.helper.plist" "$APP/Contents/Resources/com.codex.h3cvpn.helper.plist"
+cp "$ROOT/RouteManager/install-route-manager.sh" "$APP/Contents/Resources/install-route-manager.sh"
+cp "$ROOT/RouteManager/local-route-manager.sh" "$APP/Contents/Resources/local-route-manager.sh"
 cp "$ROOT/README.md" "$APP/Contents/Resources/README.md"
 cp "$ROOT/TEST-REPORT.md" "$APP/Contents/Resources/TEST-REPORT.md"
 cp "$CLI/THIRD_PARTY_NOTICES.md" "$APP/Contents/Resources/THIRD_PARTY_NOTICES.md"
@@ -50,6 +52,7 @@ cp -R "$CLI/Licenses" "$APP/Contents/Resources/Licenses"
 chmod 755 "$APP/Contents/MacOS/H3CVPN" "$APP/Contents/Resources/H3CVPNUpdater"
 chmod 755 "$APP/Contents/Resources/openconnect" "$APP/Contents/Resources/vpnc-script"
 chmod 755 "$APP/Contents/Resources/com.codex.h3cvpn.helper"
+chmod 755 "$APP/Contents/Resources/install-route-manager.sh" "$APP/Contents/Resources/local-route-manager.sh"
 
 for item in "$APP/Contents/Resources/"*.dylib; do
     codesign --force --sign - "$item"

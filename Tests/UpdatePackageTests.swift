@@ -23,11 +23,11 @@ struct UpdatePackageTests {
         let digest = CommandLine.arguments[3]
         let size = ((try FileManager.default.attributesOfItem(atPath: dmg.path)[.size]) as! NSNumber).int64Value
         let release = UpdateRelease(
-            version: "0.9.4",
-            assetURL: URL(string: "https://github.com/shui462115/h3c-vpn-client-macos/releases/download/v0.9.4/\(updateAssetName)")!,
+            version: "0.9.5",
+            assetURL: URL(string: "https://github.com/shui462115/h3c-vpn-client-macos/releases/download/v0.9.5/\(updateAssetName)")!,
             assetSize: size,
             sha256: digest,
-            releaseURL: URL(string: "https://github.com/shui462115/h3c-vpn-client-macos/releases/tag/v0.9.4")!
+            releaseURL: URL(string: "https://github.com/shui462115/h3c-vpn-client-macos/releases/tag/v0.9.5")!
         )
 
         try validateDownloadedUpdate(at: dmg, release: release)
@@ -46,7 +46,7 @@ struct UpdatePackageTests {
             try validateDownloadedUpdate(at: dmg, release: badSize)
         }
 
-        try validateUpdateApplication(at: app, expectedVersion: "0.9.4")
+        try validateUpdateApplication(at: app, expectedVersion: "0.9.5")
         mustThrow("wrong expected version accepted") {
             try validateUpdateApplication(at: app, expectedVersion: "9.9.9")
         }
@@ -66,7 +66,7 @@ struct UpdatePackageTests {
         try PropertyListSerialization.data(fromPropertyList: wrongInfo, format: .xml, options: 0)
             .write(to: wrongInfoURL, options: .atomic)
         mustThrow("wrong bundle identifier accepted") {
-            try validateUpdateApplication(at: wrongIdentity, expectedVersion: "0.9.4")
+            try validateUpdateApplication(at: wrongIdentity, expectedVersion: "0.9.5")
         }
 
         let brokenSignature = workspace.appendingPathComponent("Broken Signature.app", isDirectory: true)
@@ -77,7 +77,7 @@ struct UpdatePackageTests {
         try handle.write(contentsOf: Data("\nsignature test\n".utf8))
         try handle.close()
         mustThrow("broken code signature accepted") {
-            try validateUpdateApplication(at: brokenSignature, expectedVersion: "0.9.4")
+        try validateUpdateApplication(at: brokenSignature, expectedVersion: "0.9.5")
         }
 
         let current = workspace.appendingPathComponent("SSL VPN Connect.app", isDirectory: true)

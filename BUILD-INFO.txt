@@ -1,5 +1,5 @@
 SSL VPN Connect experimental macOS client
-Version: 0.9.4 (18)
+Version: 0.9.5 (19)
 Architecture: arm64
 OpenConnect: h3cssl commit 22b2218d10e9cb3fb072db7f3e65c6fda44f68c0
 vpnc-scripts: commit ce9e961bd0f6b867e1c7c35f78f6fb973f6ff101
@@ -8,3 +8,4 @@ libxml2: 2.15.3
 LZ4: 1.10.0
 Gateway: configured by user
 Server certificate pin: configured by user or fetched from gateway
+Local route manager: integrated, daemon version 6
