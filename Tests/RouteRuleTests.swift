@@ -56,6 +56,21 @@ struct RouteRuleTests {
                 "multi-host migration keeps first target")
         require(migratedRules.contains { $0.contains("host=two.example.com\n") },
                 "multi-host migration keeps second target")
+
+        let backupRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent("H3CVPNRouteBackupTests-\(UUID().uuidString)", isDirectory: true)
+        let backupRules = backupRoot.appendingPathComponent("rules", isDirectory: true)
+        try FileManager.default.createDirectory(at: backupRules, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: backupRoot) }
+        let backupRule = backupRules.appendingPathComponent("saved.conf")
+        try managedRouteConfiguration(target: "backup.example.com", interfaceName: "en5",
+                                      dns: "1.1.1.1", isEnabled: true)
+            .write(to: backupRule, atomically: true, encoding: .utf8)
+        try synchronizeManagedRouteBackup(in: backupRules)
+        try FileManager.default.removeItem(at: backupRule)
+        try recoverManagedRouteRulesIfNeeded(in: backupRules)
+        require(FileManager.default.fileExists(atPath: backupRule.path),
+                "route file recovery from backup")
         print("Route rule tests passed")
     }
 }

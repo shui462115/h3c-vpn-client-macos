@@ -157,6 +157,59 @@ private func routeRulesDirectory() throws -> URL {
     return directory
 }
 
+func managedRouteBackupDirectory(in rulesDirectory: URL,
+                                 fileManager: FileManager = .default) throws -> URL {
+    let backup = rulesDirectory.deletingLastPathComponent()
+        .appendingPathComponent("rules-backup", isDirectory: true)
+    try fileManager.createDirectory(at: backup, withIntermediateDirectories: true,
+                                    attributes: [.posixPermissions: 0o700])
+    try? fileManager.setAttributes([.posixPermissions: 0o700], ofItemAtPath: backup.path)
+    return backup
+}
+
+private func isManagedRouteFile(_ url: URL) -> Bool {
+    guard url.pathExtension == "conf" else { return false }
+    return (try? url.resourceValues(forKeys: [.isSymbolicLinkKey]).isSymbolicLink) != true
+}
+
+func synchronizeManagedRouteBackup(in rulesDirectory: URL,
+                                   fileManager: FileManager = .default) throws {
+    let backup = try managedRouteBackupDirectory(in: rulesDirectory, fileManager: fileManager)
+    let files = try fileManager.contentsOfDirectory(at: rulesDirectory,
+                                                    includingPropertiesForKeys: nil)
+        .filter(isManagedRouteFile)
+    for file in files {
+        let destination = backup.appendingPathComponent(file.lastPathComponent)
+        if fileManager.fileExists(atPath: destination.path) {
+            try fileManager.removeItem(at: destination)
+        }
+        try fileManager.copyItem(at: file, to: destination)
+        try? fileManager.setAttributes([.posixPermissions: 0o600],
+                                       ofItemAtPath: destination.path)
+    }
+}
+
+func recoverManagedRouteRulesIfNeeded(in rulesDirectory: URL,
+                                      fileManager: FileManager = .default) throws {
+    let primary = try fileManager.contentsOfDirectory(at: rulesDirectory,
+                                                      includingPropertiesForKeys: nil)
+        .filter(isManagedRouteFile)
+    guard primary.isEmpty else { return }
+    let backup = try managedRouteBackupDirectory(in: rulesDirectory, fileManager: fileManager)
+    let backups = try fileManager.contentsOfDirectory(at: backup,
+                                                      includingPropertiesForKeys: nil)
+        .filter(isManagedRouteFile)
+    for file in backups {
+        guard let text = try? String(contentsOf: file, encoding: .utf8),
+              parseManagedRouteRule(id: file.deletingPathExtension().lastPathComponent,
+                                   text: text) != nil else { continue }
+        let destination = rulesDirectory.appendingPathComponent(file.lastPathComponent)
+        try fileManager.copyItem(at: file, to: destination)
+        try? fileManager.setAttributes([.posixPermissions: 0o600],
+                                       ofItemAtPath: destination.path)
+    }
+}
+
 private func availableRouteInterfaces() throws -> [RouteInterfaceOption] {
     let result = try runRouteCommand("/usr/sbin/networksetup", ["-listallhardwareports"])
     guard result.status == 0 else { return [] }
@@ -311,6 +364,7 @@ final class LocalRouteManagerViewModel: ObservableObject {
             try configuration.write(to: url, atomically: true, encoding: .utf8)
             try? FileManager.default.setAttributes([.posixPermissions: 0o600],
                                                    ofItemAtPath: url.path)
+            try synchronizeManagedRouteBackup(in: directory)
             reloadRules(selecting: ruleID)
             syncRules(directory: directory)
         } catch {
@@ -324,6 +378,8 @@ final class LocalRouteManagerViewModel: ObservableObject {
             let directory = try routeRulesDirectory()
             let url = directory.appendingPathComponent(selectedRuleID).appendingPathExtension("conf")
             try FileManager.default.removeItem(at: url)
+            let backup = try managedRouteBackupDirectory(in: directory)
+            try? FileManager.default.removeItem(at: backup.appendingPathComponent(url.lastPathComponent))
             self.selectedRuleID = nil
             reloadRules()
             syncRules(directory: directory)
@@ -366,6 +422,7 @@ final class LocalRouteManagerViewModel: ObservableObject {
     private func reloadRules(selecting preferredID: String? = nil) {
         do {
             let directory = try routeRulesDirectory()
+            try recoverManagedRouteRulesIfNeeded(in: directory)
             try migrateLegacyManagedRouteRules(in: directory)
             let files = try FileManager.default.contentsOfDirectory(at: directory,
                                                                     includingPropertiesForKeys: nil)
@@ -375,6 +432,7 @@ final class LocalRouteManagerViewModel: ObservableObject {
                 try? FileManager.default.setAttributes([.posixPermissions: 0o600],
                                                        ofItemAtPath: file.path)
             }
+            try synchronizeManagedRouteBackup(in: directory)
             rules = files.compactMap { url in
                 guard let text = try? String(contentsOf: url, encoding: .utf8) else { return nil }
                 return parseManagedRouteRule(id: url.deletingPathExtension().lastPathComponent, text: text)
