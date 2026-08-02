@@ -159,11 +159,30 @@ private func routeRulesDirectory() throws -> URL {
 
 func managedRouteBackupDirectory(in rulesDirectory: URL,
                                  fileManager: FileManager = .default) throws -> URL {
-    let backup = rulesDirectory.deletingLastPathComponent()
-        .appendingPathComponent("rules-backup", isDirectory: true)
+    let backup = rulesDirectory.appendingPathComponent(".backup", isDirectory: true)
     try fileManager.createDirectory(at: backup, withIntermediateDirectories: true,
                                     attributes: [.posixPermissions: 0o700])
     try? fileManager.setAttributes([.posixPermissions: 0o700], ofItemAtPath: backup.path)
+
+    // v0.9.8 briefly stored backups beside the rules directory. Move valid
+    // files into the current-directory backup before using the new location.
+    let legacy = rulesDirectory.deletingLastPathComponent()
+        .appendingPathComponent("rules-backup", isDirectory: true)
+    let currentFiles = (try? fileManager.contentsOfDirectory(at: backup,
+                                                              includingPropertiesForKeys: nil)) ?? []
+        .filter(isManagedRouteFile)
+    if currentFiles.isEmpty,
+       let legacyFiles = try? fileManager.contentsOfDirectory(at: legacy,
+                                                              includingPropertiesForKeys: nil) {
+        for file in legacyFiles.filter(isManagedRouteFile) {
+            let destination = backup.appendingPathComponent(file.lastPathComponent)
+            if !fileManager.fileExists(atPath: destination.path) {
+                try? fileManager.copyItem(at: file, to: destination)
+                try? fileManager.setAttributes([.posixPermissions: 0o600],
+                                               ofItemAtPath: destination.path)
+            }
+        }
+    }
     return backup
 }
 

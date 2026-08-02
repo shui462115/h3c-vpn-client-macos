@@ -67,6 +67,9 @@ struct RouteRuleTests {
                                       dns: "1.1.1.1", isEnabled: true)
             .write(to: backupRule, atomically: true, encoding: .utf8)
         try synchronizeManagedRouteBackup(in: backupRules)
+        let backupDirectory = try managedRouteBackupDirectory(in: backupRules)
+        require(backupDirectory.lastPathComponent == ".backup",
+                "backup is inside current rules directory")
         try FileManager.default.removeItem(at: backupRule)
         try recoverManagedRouteRulesIfNeeded(in: backupRules)
         require(FileManager.default.fileExists(atPath: backupRule.path),
