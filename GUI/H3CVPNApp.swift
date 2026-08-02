@@ -1051,9 +1051,24 @@ final class VPNViewModel: ObservableObject {
 }
 
 struct ContentView: View {
+    private enum NetworkPathMode: String, CaseIterable, Identifiable {
+        case gateway
+        case fixedRoutes
+
+        var id: String { rawValue }
+        var title: String {
+            switch self {
+            case .gateway: return "VPN 网关出口"
+            case .fixedRoutes: return "固定路由"
+            }
+        }
+    }
+
     @ObservedObject var model: VPNViewModel
+    @ObservedObject var routeModel: LocalRouteManagerViewModel
     @Environment(\.openWindow) private var openWindow
     @State private var gatewayDraft: GatewayProfile?
+    @State private var pathMode: NetworkPathMode = .gateway
 
     private var routeColor: Color {
         if model.usesExplicitLocalInterface { return .blue }
@@ -1263,71 +1278,106 @@ struct ContentView: View {
     private var routeCard: some View {
         GroupBox {
             VStack(spacing: 8) {
-                HStack(spacing: 10) {
-                    Circle().fill(routeColor).frame(width: 10, height: 10)
-                    Text("网关出口")
-                        .frame(width: 64, alignment: .leading)
-                    Picker("网关出口", selection: Binding(
-                        get: { model.selectedLocalInterface },
-                        set: { model.selectLocalInterface($0) }
-                    )) {
-                        Text("自动选择 · \(model.usesExplicitLocalInterface ? "系统路由" : model.routeName)")
-                            .tag("")
-                        ForEach(model.localInterfaces) { item in
-                            Text(item.displayName).tag(item.name)
+                Picker("网络路径模式", selection: Binding(
+                    get: { pathMode },
+                    set: { selectPathMode($0) }
+                )) {
+                    ForEach(NetworkPathMode.allCases) { mode in
+                        Text(mode.title).tag(mode)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .disabled(model.isConnected)
+
+                Group {
+                    if pathMode == .gateway {
+                    HStack(spacing: 10) {
+                        Circle().fill(routeColor).frame(width: 10, height: 10)
+                        Text("网关出口")
+                            .frame(width: 64, alignment: .leading)
+                        Picker("网关出口", selection: Binding(
+                            get: { model.selectedLocalInterface },
+                            set: { model.selectLocalInterface($0) }
+                        )) {
+                            Text("自动选择 · \(model.usesExplicitLocalInterface ? "系统路由" : model.routeName)")
+                                .tag("")
+                            ForEach(model.localInterfaces) { item in
+                                Text(item.displayName).tag(item.name)
+                            }
+                        }
+                        .labelsHidden()
+                        .frame(maxWidth: .infinity)
+                        .disabled(model.isConnected)
+                        Button { model.refreshLocalInterfaces() } label: {
+                            Image(systemName: "arrow.clockwise")
+                        }
+                        .help("刷新本地网口")
+                        .disabled(model.isConnected)
+                    }
+                    if model.usesExplicitLocalInterface {
+                        HStack(alignment: .top, spacing: 8) {
+                            Image(systemName: "network").foregroundStyle(.blue)
+                            Text("已绑定 \(model.routeName)")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            Spacer()
+                        }
+                    } else if model.allowTunnelRoute {
+                        HStack(alignment: .top, spacing: 8) {
+                            Image(systemName: "arrow.triangle.branch").foregroundStyle(.blue)
+                            Text("当前连接允许沿系统现有 utun 路径发送，不执行网关出口检查。")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            Spacer()
+                        }
+                    } else if model.routeIsTunnel {
+                        HStack(alignment: .top, spacing: 8) {
+                            Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.red)
+                            Text("检测到现有 VPN/代理隧道。建议先关闭 Shadowrocket，否则 H3C TLS 握手可能失败。")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            Spacer()
                         }
                     }
-                    .labelsHidden()
-                    .frame(maxWidth: .infinity)
-                    .disabled(model.isConnected)
-                    Button { model.refreshLocalInterfaces() } label: {
-                        Image(systemName: "arrow.clockwise")
-                    }
-                    .help("刷新本地网口")
-                    .disabled(model.isConnected)
-                }
-                if model.usesExplicitLocalInterface {
-                    HStack(alignment: .top, spacing: 8) {
-                        Image(systemName: "network").foregroundStyle(.blue)
-                        Text("已绑定 \(model.routeName)")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+
+                    HStack(spacing: 10) {
+                        Toggle("仍允许经过现有 utun 隧道连接", isOn: Binding(
+                            get: { model.allowTunnelRoute },
+                            set: { model.setAllowTunnelRoute($0) }
+                        ))
+                        .toggleStyle(.checkbox)
+                        .font(.caption)
+                        .disabled(model.isConnected || model.usesExplicitLocalInterface)
                         Spacer()
                     }
-                } else if model.allowTunnelRoute {
-                    HStack(alignment: .top, spacing: 8) {
-                        Image(systemName: "arrow.triangle.branch").foregroundStyle(.blue)
-                        Text("当前连接允许沿系统现有 utun 路径发送，不执行网关出口检查。")
+                    } else {
+                        HStack(alignment: .top, spacing: 8) {
+                        Circle()
+                            .fill(routeModel.enabledRuleCount > 0 ? Color.green : Color.secondary)
+                            .frame(width: 10, height: 10)
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(routeModel.rules.isEmpty ? "尚未配置固定路由" :
+                                 "已启用 \(routeModel.enabledRuleCount) / \(routeModel.rules.count) 条规则")
+                                .font(.callout.weight(.medium))
+                            Text(routeModel.routeServiceReady ? "后台路由服务已就绪" : "首次保存时需要一次管理员授权")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                    }
+                        .contentShape(Rectangle())
+                        .onTapGesture {
+                            openRouteWindow()
+                        }
+                        Text("切换到固定路由后会自动打开详细配置")
                             .font(.caption)
                             .foregroundStyle(.secondary)
-                        Spacer()
+                            .frame(maxWidth: .infinity, alignment: .leading)
                     }
-                } else if model.routeIsTunnel {
-                    HStack(alignment: .top, spacing: 8) {
-                        Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.red)
-                        Text("检测到现有 VPN/代理隧道。建议先关闭 Shadowrocket，否则 H3C TLS 握手可能失败。")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        Spacer()
-                    }
-                }
-                HStack(spacing: 10) {
-                    Toggle("仍允许经过现有 utun 隧道连接", isOn: Binding(
-                        get: { model.allowTunnelRoute },
-                        set: { model.setAllowTunnelRoute($0) }
-                    ))
-                    .toggleStyle(.checkbox)
-                    .font(.caption)
-                    .disabled(model.isConnected || model.usesExplicitLocalInterface)
-                    Spacer()
-                    Button {
-                        openWindow(id: "routes")
-                        NSApp.activate(ignoringOtherApps: true)
-                    } label: {
-                        Label("固定路由…", systemImage: "arrow.triangle.branch")
-                    }
-                    .controlSize(.small)
-                    .help("管理任意域名或 IPv4 到本地网卡的固定路由")
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
@@ -1336,6 +1386,18 @@ struct ContentView: View {
             Label("网络路径", systemImage: "point.3.connected.trianglepath.dotted")
                 .font(.headline)
         }
+    }
+
+    private func selectPathMode(_ mode: NetworkPathMode) {
+        pathMode = mode
+        if mode == .fixedRoutes {
+            openRouteWindow()
+        }
+    }
+
+    private func openRouteWindow() {
+        openWindow(id: "routes")
+        NSApp.activate(ignoringOtherApps: true)
     }
 
     private var actionArea: some View {
@@ -1659,7 +1721,7 @@ struct H3CVPNApp: App {
 
     var body: some Scene {
         Window("SSL VPN Connect", id: "main") {
-            ContentView(model: model)
+            ContentView(model: model, routeModel: routeModel)
         }
         .windowResizability(.contentSize)
         .commands {

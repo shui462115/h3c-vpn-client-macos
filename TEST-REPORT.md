@@ -18,14 +18,14 @@ Date: 2026-08-02
 - GUI and helper use protocol version 5; an older helper is detected as outdated and cannot start a connection.
 - The v0.9.2 failure was reproduced with a 26,581,454,384-byte log repeating `Read error on TLS session: 6`; process sampling showed the main thread in `refreshState()` and `configuredVPNAddress(from:)` with a 40.9 GiB physical footprint.
 - The installed v0.9.3 GUI opened normally, rejected the installed protocol-v4 helper as outdated, and remained at 0.0% CPU with about 131 MiB RSS during the post-launch stability check.
-- The v0.9.5 GUI checks the GitHub latest stable release asynchronously at launch and provides manual checks from both the application menu and menu-bar menu.
+- The v0.9.6 GUI checks the GitHub latest stable release asynchronously at launch and provides manual checks from both the application menu and menu-bar menu.
 - Release parsing accepts only a newer three-component stable semantic version and the exact `SSLVPNConnect-macOS-arm64.dmg` asset from this repository's HTTPS GitHub release path.
 - The updater requires GitHub's `sha256:` asset digest and expected byte count; correct data passed, while checksum and size mismatch fixtures were rejected before mounting.
 - Mounted and staged applications must match bundle ID `com.codex.h3cvpn`, the expected release version, executable name, native arm64 architecture, and a deep strict code-signature check.
 - Negative package tests rejected malformed release tags and digests, prereleases, wrong versions, a wrong bundle identifier, and a modified signed resource.
 - The independent updater waited for the old PID, atomically exchanged two signed fixture application bundles in the same directory, removed the old bundle, and successfully reopened the replacement.
 - Application updating is refused while VPN is connected; the privileged VPN helper is not silently replaced and retains its existing explicit action-time authorization flow.
-- The final v0.9.5 app and bundled updater compiled without warnings for arm64 macOS 13.0, and the complete app passed deep strict code-signature verification.
+- The final v0.9.6 app and bundled updater compiled without warnings for arm64 macOS 13.0, and the complete app passed deep strict code-signature verification.
 - The v0.9.5 build integrates the generic LocalRouteManager UI and its version-6 LaunchDaemon installer; existing `~/Library/Application Support/LocalRouteManager/rules/*.conf` files are reused without adding default targets.
 - Local route rule tests passed for IPv4/domain validation, optional DNS, enabled state, malformed targets, and missing interface input. The UI exposes the feature from the main network-path card, the menu-bar menu, and the application menu.
 - The route service keeps one target per rule, migrates legacy multi-host files, validates the bound user-owned rule directory, refuses to replace foreign host routes, retains the last successful routes across transient DNS failures, protects pre-existing `/etc/resolver` files with an ownership marker, and reports enabled/managed/error counts through its status file. Saving against the current service does not request another administrator authorization.
@@ -36,6 +36,7 @@ Date: 2026-08-02
 - Certificate probing invokes the bundled core in non-interactive authenticate-only mode and parses the advertised `pin-sha256` value without credentials.
 - Enabling existing-utun routing skips route lookup and removes the route-conflict block for the next connection.
 - The local-interface picker enumerates active non-loopback IPv4 interfaces and persists an automatic or explicit selection.
+- The main network-path card uses a two-way segmented switch between VPN gateway egress and fixed-route configuration; selecting fixed routes opens the detailed route window automatically.
 - The patched OpenConnect core bound a test socket to `en5` through macOS `IP_BOUND_IF` and emitted the expected binding log without transmitting credentials.
 - Certificate fingerprint probing passes the gateway editor's selected local interface to the same patched OpenConnect core.
 - Authentication, SSL, gateway, and script failures trigger automatic cleanup; connection establishment times out after 30 seconds without an assigned VPN address.

@@ -8,7 +8,8 @@ struct PreviewRenderer {
         let app = NSApplication.shared
         app.setActivationPolicy(.accessory)
         app.finishLaunching()
-        let hosting = NSHostingView(rootView: ContentView(model: VPNViewModel())
+        let hosting = NSHostingView(rootView: ContentView(model: VPNViewModel(),
+                                                           routeModel: LocalRouteManagerViewModel())
             .frame(width: 500, height: 780, alignment: .top))
         hosting.frame = NSRect(x: 0, y: 0, width: 500, height: 780)
         let window = NSWindow(contentRect: hosting.frame,
