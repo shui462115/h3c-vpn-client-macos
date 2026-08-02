@@ -38,6 +38,19 @@ struct GatewayProfile: Codable, Hashable, Identifiable {
     static let placeholder = GatewayProfile(name: "请配置网关", address: "", serverPin: "")
 }
 
+enum H3CVPNWorkspace: String, CaseIterable, Identifiable, Sendable {
+    case vpn
+    case routes
+
+    var id: String { rawValue }
+    var title: String {
+        switch self {
+        case .vpn: return "VPN 连接"
+        case .routes: return "本地路由"
+        }
+    }
+}
+
 private struct CommandResult: Sendable {
     let status: Int32
     let output: String
@@ -384,6 +397,7 @@ struct UpdateNotice: Identifiable {
 
 @MainActor
 final class VPNViewModel: ObservableObject {
+    @Published var workspace: H3CVPNWorkspace = .vpn
     @Published var gatewayProfiles: [GatewayProfile]
     @Published var gateway: String
     @Published var username: String
@@ -1051,24 +1065,9 @@ final class VPNViewModel: ObservableObject {
 }
 
 struct ContentView: View {
-    private enum NetworkPathMode: String, CaseIterable, Identifiable {
-        case gateway
-        case fixedRoutes
-
-        var id: String { rawValue }
-        var title: String {
-            switch self {
-            case .gateway: return "VPN 网关出口"
-            case .fixedRoutes: return "固定路由"
-            }
-        }
-    }
-
     @ObservedObject var model: VPNViewModel
     @ObservedObject var routeModel: LocalRouteManagerViewModel
-    @Environment(\.openWindow) private var openWindow
     @State private var gatewayDraft: GatewayProfile?
-    @State private var pathMode: NetworkPathMode = .gateway
 
     private var routeColor: Color {
         if model.usesExplicitLocalInterface { return .blue }
@@ -1081,30 +1080,13 @@ struct ContentView: View {
         VStack(spacing: 0) {
             header
                 .fixedSize(horizontal: false, vertical: true)
-            VStack(spacing: 10) {
-                connectionCard
-                routeCard
-                helperCard
-                actionArea
-                trafficCard
-                logCard
-                Group {
-                    if model.isUpdating {
-                        HStack(spacing: 7) {
-                            ProgressView().controlSize(.small)
-                            Text(model.updateStatusText)
-                        }
-                    } else {
-                        Text("实验客户端 · 凭据仅保存在本机 · 兼容 H3C TLS VPN")
-                    }
-                }
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .frame(height: 16)
+            workspaceSwitcher
+            if model.workspace == .vpn {
+                vpnWorkspace
+            } else {
+                LocalRouteManagerView(model: routeModel, embedded: true)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             }
-            .padding(.horizontal, 14)
-            .padding(.top, 14)
-            .padding(.bottom, 10)
         }
         .frame(width: 500, height: 780, alignment: .top)
         .background(Color(nsColor: .windowBackgroundColor))
@@ -1141,6 +1123,49 @@ struct ContentView: View {
                              dismissButton: .default(Text("好")))
             }
         }
+    }
+
+    private var vpnWorkspace: some View {
+        VStack(spacing: 10) {
+            connectionCard
+            routeCard
+            helperCard
+            actionArea
+            trafficCard
+            logCard
+            Group {
+                if model.isUpdating {
+                    HStack(spacing: 7) {
+                        ProgressView().controlSize(.small)
+                        Text(model.updateStatusText)
+                    }
+                } else {
+                    Text("实验客户端 · 凭据仅保存在本机 · 兼容 H3C TLS VPN")
+                }
+            }
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .frame(height: 16)
+        }
+        .padding(.horizontal, 14)
+        .padding(.top, 10)
+        .padding(.bottom, 10)
+    }
+
+    private var workspaceSwitcher: some View {
+        Picker("工作区", selection: Binding(
+            get: { model.workspace },
+            set: { model.workspace = $0 }
+        )) {
+            ForEach(H3CVPNWorkspace.allCases) { workspace in
+                Text(workspace.title).tag(workspace)
+            }
+        }
+        .pickerStyle(.segmented)
+        .labelsHidden()
+        .padding(.horizontal, 14)
+        .padding(.top, 10)
+        .padding(.bottom, 2)
     }
 
     private var header: some View {
@@ -1278,126 +1303,70 @@ struct ContentView: View {
     private var routeCard: some View {
         GroupBox {
             VStack(spacing: 8) {
-                Picker("网络路径模式", selection: Binding(
-                    get: { pathMode },
-                    set: { selectPathMode($0) }
-                )) {
-                    ForEach(NetworkPathMode.allCases) { mode in
-                        Text(mode.title).tag(mode)
+                HStack(spacing: 10) {
+                    Circle().fill(routeColor).frame(width: 10, height: 10)
+                    Text("网关出口")
+                        .frame(width: 64, alignment: .leading)
+                    Picker("网关出口", selection: Binding(
+                        get: { model.selectedLocalInterface },
+                        set: { model.selectLocalInterface($0) }
+                    )) {
+                        Text("自动选择 · \(model.usesExplicitLocalInterface ? "系统路由" : model.routeName)")
+                            .tag("")
+                        ForEach(model.localInterfaces) { item in
+                            Text(item.displayName).tag(item.name)
+                        }
                     }
+                    .labelsHidden()
+                    .frame(maxWidth: .infinity)
+                    .disabled(model.isConnected)
+                    Button { model.refreshLocalInterfaces() } label: {
+                        Image(systemName: "arrow.clockwise")
+                    }
+                    .help("刷新本地网口")
+                    .disabled(model.isConnected)
                 }
-                .pickerStyle(.segmented)
-                .labelsHidden()
-                .disabled(model.isConnected)
-
-                Group {
-                    if pathMode == .gateway {
-                    HStack(spacing: 10) {
-                        Circle().fill(routeColor).frame(width: 10, height: 10)
-                        Text("网关出口")
-                            .frame(width: 64, alignment: .leading)
-                        Picker("网关出口", selection: Binding(
-                            get: { model.selectedLocalInterface },
-                            set: { model.selectLocalInterface($0) }
-                        )) {
-                            Text("自动选择 · \(model.usesExplicitLocalInterface ? "系统路由" : model.routeName)")
-                                .tag("")
-                            ForEach(model.localInterfaces) { item in
-                                Text(item.displayName).tag(item.name)
-                            }
-                        }
-                        .labelsHidden()
-                        .frame(maxWidth: .infinity)
-                        .disabled(model.isConnected)
-                        Button { model.refreshLocalInterfaces() } label: {
-                            Image(systemName: "arrow.clockwise")
-                        }
-                        .help("刷新本地网口")
-                        .disabled(model.isConnected)
-                    }
-                    if model.usesExplicitLocalInterface {
-                        HStack(alignment: .top, spacing: 8) {
-                            Image(systemName: "network").foregroundStyle(.blue)
-                            Text("已绑定 \(model.routeName)")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                            Spacer()
-                        }
-                    } else if model.allowTunnelRoute {
-                        HStack(alignment: .top, spacing: 8) {
-                            Image(systemName: "arrow.triangle.branch").foregroundStyle(.blue)
-                            Text("当前连接允许沿系统现有 utun 路径发送，不执行网关出口检查。")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                            Spacer()
-                        }
-                    } else if model.routeIsTunnel {
-                        HStack(alignment: .top, spacing: 8) {
-                            Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.red)
-                            Text("检测到现有 VPN/代理隧道。建议先关闭 Shadowrocket，否则 H3C TLS 握手可能失败。")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                            Spacer()
-                        }
-                    }
-
-                    HStack(spacing: 10) {
-                        Toggle("仍允许经过现有 utun 隧道连接", isOn: Binding(
-                            get: { model.allowTunnelRoute },
-                            set: { model.setAllowTunnelRoute($0) }
-                        ))
-                        .toggleStyle(.checkbox)
-                        .font(.caption)
-                        .disabled(model.isConnected || model.usesExplicitLocalInterface)
-                        Spacer()
-                    }
-                    } else {
-                        HStack(alignment: .top, spacing: 8) {
-                        Circle()
-                            .fill(routeModel.enabledRuleCount > 0 ? Color.green : Color.secondary)
-                            .frame(width: 10, height: 10)
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text(routeModel.rules.isEmpty ? "尚未配置固定路由" :
-                                 "已启用 \(routeModel.enabledRuleCount) / \(routeModel.rules.count) 条规则")
-                                .font(.callout.weight(.medium))
-                            Text(routeModel.routeServiceReady ? "后台路由服务已就绪" : "首次保存时需要一次管理员授权")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                        Spacer()
-                        Image(systemName: "chevron.right")
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(.secondary)
-                    }
-                        .contentShape(Rectangle())
-                        .onTapGesture {
-                            openRouteWindow()
-                        }
-                        Text("切换到固定路由后会自动打开详细配置")
+                if model.usesExplicitLocalInterface {
+                    HStack(alignment: .top, spacing: 8) {
+                        Image(systemName: "network").foregroundStyle(.blue)
+                        Text("已绑定 \(model.routeName)")
                             .font(.caption)
                             .foregroundStyle(.secondary)
-                            .frame(maxWidth: .infinity, alignment: .leading)
+                        Spacer()
+                    }
+                } else if model.allowTunnelRoute {
+                    HStack(alignment: .top, spacing: 8) {
+                        Image(systemName: "arrow.triangle.branch").foregroundStyle(.blue)
+                        Text("当前连接允许沿系统现有 utun 路径发送，不执行网关出口检查。")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                    }
+                } else if model.routeIsTunnel {
+                    HStack(alignment: .top, spacing: 8) {
+                        Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.red)
+                        Text("检测到现有 VPN/代理隧道。建议先关闭 Shadowrocket，否则 H3C TLS 握手可能失败。")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Spacer()
                     }
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
+                HStack(spacing: 10) {
+                    Toggle("仍允许经过现有 utun 隧道连接", isOn: Binding(
+                        get: { model.allowTunnelRoute },
+                        set: { model.setAllowTunnelRoute($0) }
+                    ))
+                    .toggleStyle(.checkbox)
+                    .font(.caption)
+                    .disabled(model.isConnected || model.usesExplicitLocalInterface)
+                    Spacer()
+                }
             }
             .padding(6)
         } label: {
             Label("网络路径", systemImage: "point.3.connected.trianglepath.dotted")
                 .font(.headline)
         }
-    }
-
-    private func selectPathMode(_ mode: NetworkPathMode) {
-        pathMode = mode
-        if mode == .fixedRoutes {
-            openRouteWindow()
-        }
-    }
-
-    private func openRouteWindow() {
-        openWindow(id: "routes")
-        NSApp.activate(ignoringOtherApps: true)
     }
 
     private var actionArea: some View {
@@ -1660,11 +1629,13 @@ private struct MenuBarContent: View {
         }
         Divider()
         Button("打开 SSL VPN Connect") {
+            model.workspace = .vpn
             openWindow(id: "main")
             NSApp.activate(ignoringOtherApps: true)
         }
-        Button("本地路由配置…") {
-            openWindow(id: "routes")
+        Button("打开本地路由") {
+            model.workspace = .routes
+            openWindow(id: "main")
             NSApp.activate(ignoringOtherApps: true)
         }
         Text("固定路由：\(routeModel.enabledRuleCount)/\(routeModel.rules.count) 条启用")
@@ -1696,8 +1667,9 @@ private struct H3CVPNCommands: Commands {
     var body: some Commands {
         CommandGroup(replacing: .newItem) { }
         CommandGroup(after: .appInfo) {
-            Button("本地路由配置…") {
-                openWindow(id: "routes")
+            Button("打开本地路由") {
+                model.workspace = .routes
+                openWindow(id: "main")
                 NSApp.activate(ignoringOtherApps: true)
             }
             .keyboardShortcut("r", modifiers: [.command, .shift])
@@ -1727,11 +1699,6 @@ struct H3CVPNApp: App {
         .commands {
             H3CVPNCommands(model: model, routeModel: routeModel)
         }
-
-        Window("本地网络路由配置", id: "routes") {
-            LocalRouteManagerView(model: routeModel)
-        }
-        .windowResizability(.contentSize)
 
         MenuBarExtra {
             MenuBarContent(model: model, routeModel: routeModel)

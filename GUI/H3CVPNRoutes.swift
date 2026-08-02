@@ -460,11 +460,12 @@ final class LocalRouteManagerViewModel: ObservableObject {
 
 struct LocalRouteManagerView: View {
     @ObservedObject var model: LocalRouteManagerViewModel
+    var embedded = false
     @State private var showDeleteConfirmation = false
     @State private var showRestoreConfirmation = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: embedded ? 9 : 14) {
             HStack(spacing: 12) {
                 Image(systemName: "point.3.connected.trianglepath.dotted")
                     .font(.system(size: 25, weight: .semibold))
@@ -517,7 +518,7 @@ struct LocalRouteManagerView: View {
                         }
                     }
                     .listStyle(.inset)
-                    .frame(height: 132)
+                    .frame(height: embedded ? 116 : 132)
                 }
             } label: {
                 HStack {
@@ -603,8 +604,9 @@ struct LocalRouteManagerView: View {
                 .lineLimit(2)
                 .frame(maxWidth: .infinity, minHeight: 30, alignment: .topLeading)
         }
-        .padding(20)
-        .frame(width: 650, height: 570, alignment: .top)
+        .padding(embedded ? 12 : 20)
+        .frame(maxWidth: .infinity, maxHeight: embedded ? .infinity : nil, alignment: .top)
+        .frame(width: embedded ? nil : 650, height: embedded ? nil : 570, alignment: .top)
         .onAppear { model.activate() }
         .confirmationDialog("删除当前规则？", isPresented: $showDeleteConfirmation) {
             Button("删除", role: .destructive) { model.deleteSelectedRule() }
